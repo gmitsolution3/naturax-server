@@ -103,3 +103,11 @@ export async function getAllOrder() {
   const result = await createOrderCollection.find().toArray();
   return result;
 }
+
+export async function getSingleOrder(query:any) {
+
+  const result = await createOrderCollection.findOne(query)
+
+  return result;
+  
+}

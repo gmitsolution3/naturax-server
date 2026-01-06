@@ -2,7 +2,10 @@ import { Request, Response } from "express";
 import {
   CreateOrderService,
   getAllOrder,
+  getSingleOrder,
 } from "../services/createOrder.service";
+import { ObjectId } from "mongodb";
+
 
 export const CreateOrder = async (req: Request, res: Response) => {
   const orderData = req.body;
@@ -27,9 +30,6 @@ export const CreateOrder = async (req: Request, res: Response) => {
 };
 
 export const orderController = async (req: Request, res: Response) => {
-
-
-  console.log("kik")
 
   try {
     const result = await getAllOrder();
@@ -57,3 +57,35 @@ export const orderController = async (req: Request, res: Response) => {
     });
   }
 };
+
+export const getOrderById= async(req:Request, res:Response)=>{
+  const id= req.params.id
+
+  const query = {_id: new ObjectId(id)}
+
+  try{
+    const response = await getSingleOrder(query);
+
+    if (!response) {
+      res.status(404).json({
+        success: false,
+        message: "No Data found in db"
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Order Founded",
+      data: response
+    })
+
+
+  }catch(err:any){
+    res.status(500).json({
+      success: false,
+      message: "something is wrong",
+      data: err,
+    });
+  }
+
+}
