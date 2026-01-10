@@ -5,6 +5,7 @@ import productByCategoryRoute from "./routes/productByCategory.route"
 import orderRouter from "./routes/createOrder.route"
 import facebookRoute from "./routes/facebook.route"
 import bannerRoute from "./routes/banner.route"
+import socialRoute from "./routes/social.route"
 import cors from "cors";
 
 const app = express();
@@ -23,6 +24,8 @@ app.use("/create-order", orderRouter);
 
 app.use("/facebook-setting",facebookRoute);
 app.use("/banner", bannerRoute);
+
+app.use("/social", socialRoute);
 
 
 

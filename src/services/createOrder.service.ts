@@ -87,8 +87,6 @@ export async function CreateOrderService(payload: any) {
     paymentStatus: payload.paymentStatus,
   };
 
-  
-
   // Insert order into DB
   const result = await createOrderCollection.insertOne(orderData);
 
@@ -118,13 +116,90 @@ export async function getSingleOrder(query: any) {
 }
 
 export const updateSingleOrder = async (query: any, payload: any) => {
+  console.log({ payload: payload, query: query });
 
-  console.log({payload: payload, query: query});
-
-   const { _id, ...updateData } = payload;
-
+  const { _id, ...updateData } = payload;
 
   return await createOrderCollection.updateOne(query, {
     $set: updateData,
   });
 };
+
+export async function getHistory(query: any) {
+  // const historyTracker = await createOrderCollection
+  //   .find(query)
+  //   .sort({ createdAt: -1 })
+  //   .toArray();
+
+  const historyTracker = await createOrderCollection
+    .aggregate([
+      {
+        $match: {
+          "customerInfo.phone": query["customerInfo.phone"],
+        },
+      },
+      {
+        $group: {
+          _id: "$customerInfo.phone",
+
+          // 🔹 Total Orders
+          totalOrders: { $sum: 1 },
+
+          // 🔹 Financial
+          totalGrandTotal: { $sum: "$grandTotal" },
+
+          // 🔹 Order Status Counts
+          pending: {
+            $sum: { $cond: [{ $eq: ["$orderStatus", "pending"] }, 1, 0] },
+          },
+          processing: {
+            $sum: { $cond: [{ $eq: ["$orderStatus", "processing"] }, 1, 0] },
+          },
+          courier: {
+            $sum: { $cond: [{ $eq: ["$orderStatus", "courier"] }, 1, 0] },
+          },
+          onHold: {
+            $sum: { $cond: [{ $eq: ["$orderStatus", "on-hold"] }, 1, 0] },
+          },
+          cancelled: {
+            $sum: { $cond: [{ $eq: ["$orderStatus", "cancelled"] }, 1, 0] },
+          },
+          returned: {
+            $sum: { $cond: [{ $eq: ["$orderStatus", "return"] }, 1, 0] },
+          },
+          completed: {
+            $sum: { $cond: [{ $eq: ["$orderStatus", "completed"] }, 1, 0] },
+          },
+
+          // 🔹 Payment Summary
+          totalPaidOrders: {
+            $sum: {
+              $cond: [{ $eq: ["$paymentStatus", "success"] }, 1, 0],
+            },
+          },
+
+          totalPaidAmount: {
+            $sum: {
+              $cond: [{ $eq: ["$paymentStatus", "success"] }, "$grandTotal", 0],
+            },
+          },
+          totalDueOrders: {
+            $sum: { $cond: [{ $eq: ["$paymentStatus", "due"] }, 1, 0] },
+          },
+          totalDueAmount: {
+            $sum: {
+              $cond: [{ $eq: ["$paymentStatus", "due"] }, "$grandTotal", 0],
+            },
+          },
+          userInfo: { $first: "$customerInfo" },
+
+          // 🔹 Dates
+          firstOrderDate: { $min: "$createdAt" },
+          lastOrderDate: { $max: "$createdAt" },
+        },
+      },
+    ]).toArray();
+
+
+  return historyTracker;
+}

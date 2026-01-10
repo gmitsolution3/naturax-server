@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import {
   CreateOrderService,
   getAllOrder,
+  getHistory,
   getSingleOrder,
   updateSingleOrder,
 } from "../services/createOrder.service";
@@ -128,3 +129,42 @@ export const updateOrder = async (req: Request, res: Response) => {
     });
   }
 };
+
+
+
+export const historyController =async (req:Request, res:Response)=>{
+
+  const userPhone = req.params.id;
+
+  if (!userPhone) {
+    return res.status(400).json({
+      success: false,
+      message: "User id is required",
+    });
+  }
+
+  const query = { "customerInfo.phone": userPhone };
+
+  try{
+    const result = await getHistory(query);
+
+    // if(result.length ===0){
+    //   return res.status(404).json({
+    //     success:false,
+    //     message:"No order found for this user"
+    //   })
+    // }
+    res.status(200).json({
+      success:true,
+      message:"Order history found",
+      data:result
+    })
+  }catch(err:any){
+    res.status(500).json({
+      success:false,
+      message:"Something went wrong",
+      data:err
+    })
+  }
+
+}
