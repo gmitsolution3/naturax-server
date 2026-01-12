@@ -17,6 +17,7 @@ app.use(
   cors({
     origin: ["https://gm-commerce.vercel.app", "http://localhost:3000"],
     credentials: true,
+    exposedHeaders: ["set-cookie"],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
