@@ -51,7 +51,7 @@ export const logInController = async (req: Request, res: Response) => {
       sameSite: "none",
       maxAge: 3 * 24 * 60 * 60 * 1000,
       path: "/",
-      domain: ".gm-commerce.vercel.app",
+      // domain: ".gm-commerce.vercel.app",
     });
     res.status(200).json({
       success: true,
