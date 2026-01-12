@@ -55,7 +55,6 @@ export const logInController = async (req: Request, res: Response) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      partitioned: true,
       maxAge: 3 * 24 * 60 * 60 * 1000,
     });
 
