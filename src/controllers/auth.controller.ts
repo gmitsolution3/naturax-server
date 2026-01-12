@@ -7,8 +7,6 @@ export const logInController = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
-    console.log(req.body);
-
     if (!email || !password) {
       return res
         .status(500)
@@ -16,8 +14,6 @@ export const logInController = async (req: Request, res: Response) => {
     }
 
     const isExistingUser = await findByEmail(email);
-
-    console.log({ isExistingUser: isExistingUser });
 
     if (!isExistingUser) {
       return res.status(404).json({
@@ -27,8 +23,6 @@ export const logInController = async (req: Request, res: Response) => {
     }
 
     const isMatch = await bcrypt.compare(password, isExistingUser.password);
-
-    console.log({ isMatch: isMatch });
 
     if (!isMatch) {
       return res.status(401).json({
@@ -50,10 +44,17 @@ export const logInController = async (req: Request, res: Response) => {
       { expiresIn: "3d" }
     );
 
+    // res.cookie("token", token, {
+    //   httpOnly: true,
+    //   secure: process.env.NODE_ENV === "production",
+    //    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    //   maxAge: 3 * 24 * 60 * 60 * 1000,
+    // });
+
     res.cookie("token", token, {
       httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      secure: false,
+      sameSite: "lax",
       maxAge: 3 * 24 * 60 * 60 * 1000,
     });
 
@@ -176,3 +177,72 @@ export const SignUpController = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: err.message, error: err });
   }
 };
+
+export const getMeController = async (req: Request, res: Response) => {
+  try {
+    const token = req.cookies.token;
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Not Authenticated",
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+
+    if (typeof decoded === "string" || decoded === null) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+      });
+    }
+    const user = await findByEmail(decoded.email);
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "user not found",
+      });
+    }
+
+    const sendingPayload = {
+      id: user?._id,
+      firstName: user?.firstName,
+      lastName: user?.lastName,
+      email: user?.email,
+      address: user?.address,
+      phone: user?.phone,
+      role: user?.role,
+      createdAt: user?.createdAt,
+    };
+
+
+    console.log(sendingPayload)
+
+
+
+    res.status(200).json({
+      success: true,
+      message: "User founded",
+      data: sendingPayload,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message, error: err });
+  }
+};
+
+
+
+export const logOutController = (req:Request, res:Response)=>{
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Logged out successfully",
+  });
+}

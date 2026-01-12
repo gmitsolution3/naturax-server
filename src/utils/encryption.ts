@@ -38,3 +38,9 @@ export const decrypt = (hash: { iv: string; content: string }) => {
   decrypted += decipher.final("utf8");
   return decrypted;
 };
+
+
+
+export const hashSha256 = (value: string) => {
+  return crypto.createHash("sha256").update(value).digest("hex");
+};

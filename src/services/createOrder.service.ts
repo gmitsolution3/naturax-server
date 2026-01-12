@@ -1,4 +1,7 @@
+import axios from "axios";
 import { client } from "../config/db";
+import { hashSha256 } from "../utils/encryption";
+import { getFacebookCredentialsService } from "./facebook.service";
 import { productCollection } from "./product.service";
 
 const createOrderCollection = client
@@ -25,13 +28,29 @@ export async function CreateOrderService(payload: any) {
   const finalProducts = payload.products.map((cartItem: any) => {
     const productDB = productsFromDB.find((p) => p.slug === cartItem.slug);
     if (!productDB) {
-      throw new Error(`Product not found: ${cartItem.slug}`);
+      return { success: false, message: `Product not found: ${cartItem.slug}` };
     }
+
+   const variant = productDB.variants.find(
+     (v: any) => v.sku === cartItem.variant.sku
+   );
+
+    if (!variant) {
+
+      return {
+        success: false,
+        message: `Variant not found for ${productDB.title}`,
+      };
+    }
+
 
     // Validate stock
     const availableStock = parseInt(productDB.stockQuantity as string, 10);
     if (cartItem.quantity > availableStock) {
-      throw new Error(`Not enough stock for product: ${productDB.title}`);
+       return {
+         success: false,
+         message: `Not enough stock for product: ${productDB.title}`,
+       };
     }
 
     // Calculate price after discount
@@ -45,10 +64,11 @@ export async function CreateOrderService(payload: any) {
       productId: productDB._id,
       title: productDB.title,
       slug: productDB.slug,
+      sku: variant.sku,
       quantity: cartItem.quantity,
       price: basePrice,
       subtotal: basePrice * cartItem.quantity,
-      variant: cartItem.variant, // keep variant info
+      variant: cartItem.variant,
     };
   });
 
@@ -90,9 +110,66 @@ export async function CreateOrderService(payload: any) {
   // Insert order into DB
   const result = await createOrderCollection.insertOne(orderData);
 
+  const orderId = result.insertedId;
+
+  // update product count
+  for (const item of finalProducts) {
+    await productCollection.updateOne(
+      {
+        _id: item.productId,
+        "variants.sku": item.sku,
+      },
+      {
+        $inc: {
+          "variants.$.stock": -item.quantity,
+        },
+      }
+    );
+  }
+
+  try {
+    const fbCreds = await getFacebookCredentialsService();
+
+    if (fbCreds?.isEnabled && fbCreds._internal.fbCapiToken) {
+      const fbPayload = {
+        data: [
+          {
+            event_name: "Purchase",
+            event_time: Math.floor(Date.now() / 1000),
+            action_source: "website",
+            event_source_url:
+              payload.sourceUrl || "https://gm-commerce.vercel.app/checkout",
+            user_data: {
+              em: payload.customerInfo.email
+                ? hashSha256(payload.customerInfo.email)
+                : undefined,
+              ph: payload.customerInfo.phone
+                ? hashSha256(payload.customerInfo.phone)
+                : undefined,
+            },
+            custom_data: {
+              currency: "BDT",
+              value: orderData.grandTotal,
+              content_ids: orderData.products.map((p: any) => p.slug),
+              content_type: "product",
+            },
+          },
+        ],
+      };
+
+      await axios.post(
+        `https://graph.facebook.com/v17.0/${fbCreds.fbPixelId}/events?access_token=${fbCreds._internal.fbCapiToken}`,
+        fbPayload
+      );
+      console.log("Facebook CAPI Purchase sent successfully");
+    }
+  } catch (err) {
+    console.error("Facebook CAPI error:", err);
+  }
+
   return {
     success: true,
-    orderId: result.insertedId,
+    orderId:  orderId,
     grandTotal,
     message: "Order created successfully",
     paymentMethod: payload.paymentMethod,

@@ -12,7 +12,13 @@ import cookieParser from "cookie-parser"
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+  })
+);
+app.use(cookieParser());
 
 
 app.use("/api/products",productRoute)
@@ -30,10 +36,9 @@ app.use("/banner", bannerRoute);
 app.use("/social", socialRoute);
 
 // auth route
-
 app.use("/api/v1/auth",authRouter)
 
-app.use(cookieParser());
+
 
 
 

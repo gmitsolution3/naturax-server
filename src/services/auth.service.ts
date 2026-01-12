@@ -5,10 +5,10 @@ const usersCollection = client
   .db("loweCommerce")
   .collection("users");
 
-export const findByEmail = async(email:string)=>{
-    const isExist = await usersCollection.findOne({email: email})
-    return isExist
-}
+export const findByEmail = async (email: string ) => {
+  const isExist = await usersCollection.findOne({ email: email });
+  return isExist;
+};
 
 
 export const Createuser = async (payload:any)=>{

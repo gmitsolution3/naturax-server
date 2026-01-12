@@ -18,6 +18,8 @@ export const CreateOrder = async (req: Request, res: Response) => {
     });
   }
 
+  console.log({orderData:orderData})
+
   try {
     const result = await CreateOrderService(orderData);
 
