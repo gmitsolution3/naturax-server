@@ -1,16 +1,19 @@
 import { Router } from "express";
-import { getMeController, logInController, logOutController, SignUpController } from "../controllers/auth.controller";
-
+import {
+  getMeController,
+  logInController,
+  logOutController,
+  SignUpController,
+} from "../controllers/auth.controller";
+import logger from "../middleware/logger";
 
 const router = Router();
 
+router.post("/sign-in", logger, logInController);
 
-router.post("/sign-in",logInController)
+router.post("/sign-up", SignUpController);
 
-router.post("/sign-up",SignUpController)
+router.get("/me", logger, getMeController);
+router.post("/logout", logger, logOutController);
 
-router.get("/me", getMeController);
-router.post("/logout", logOutController);
-
-
-export default router
+export default router;
