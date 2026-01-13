@@ -426,3 +426,14 @@ export const topSellingProduct = async()=>{
 
     return topSellingProducts;
 }
+
+
+
+export const deleteOrderServer = async(query:any) => {
+  const deleteOrder = await createOrderCollection.deleteOne(query)
+  return deleteOrder;
+};
+
+
+
+

@@ -8,6 +8,7 @@ import {
   getProductBySku,
   getProductDetails,
   getTopSellingProduct,
+  primaryProductDelete,
 } from "../controllers/product.controller";
 
 const router = Router();
@@ -19,6 +20,8 @@ router.get("/featured", getFeaturedProduct);
 router.get("/draft", getDraftProduct);
 router.get("/delete-product", getDeleteProduct);
 router.get("/get-top-selling-product", getTopSellingProduct);
+router.patch("/primary-delete/:id", primaryProductDelete);
+
 router.get("/:slug", getProductDetails);
 
 export default router;

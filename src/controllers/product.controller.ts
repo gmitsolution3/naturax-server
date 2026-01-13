@@ -3,12 +3,15 @@ import {
   createProduct,
   DeleteService,
   DraftService,
+  existingProductSlug,
   getAllProductService,
   getFeatureProdct,
   getProduct,
+  primaryDeleteProductService,
   productWithSku,
 } from "../services/product.service";
 import { topSellingProduct } from "../services/createOrder.service";
+import { ObjectId } from "mongodb";
 
 export const addProduct = async (req: Request, res: Response) => {
   const productData = req.body;
@@ -19,6 +22,15 @@ export const addProduct = async (req: Request, res: Response) => {
         success: false,
         message: "All fields are required",
       });
+    }
+
+    const isExistedProductSlug = await existingProductSlug(productData.slug)
+
+    if(isExistedProductSlug){
+      return res.status(500).json({
+        success: false,
+        message: "Your slug is already exited"
+      })
     }
 
     const result = await createProduct(productData);
@@ -206,3 +218,46 @@ export const getTopSellingProduct = async(req:Request, res:Response)=>{
     })
   }
 }
+
+
+export const primaryProductDelete = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Product ID missing" });
+    }
+
+    const query = { _id: new ObjectId(id) };
+
+    console.log(query)
+
+    const updatedProduct = await primaryDeleteProductService(
+      query,
+    );
+
+    console.log(updatedProduct)
+
+    if (!updatedProduct) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found or cannot update",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Product updated successfully`,
+      data: updatedProduct,
+    });
+  } catch (err: any) {
+    console.error("Error updating product:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+      error: err,
+    });
+  }
+};

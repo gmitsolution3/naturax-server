@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import {
   CreateOrderService,
+  deleteOrderServer,
   getAllOrder,
   getDashboardAnalytics,
   getHistory,
@@ -18,8 +19,6 @@ export const CreateOrder = async (req: Request, res: Response) => {
     });
   }
 
- 
-
   try {
     const result = await CreateOrderService(orderData);
 
@@ -36,8 +35,6 @@ export const CreateOrder = async (req: Request, res: Response) => {
 export const orderController = async (req: Request, res: Response) => {
   try {
     const result = await getAllOrder();
-
-  
 
     if (result.length === 0) {
       res.status(404).json({
@@ -65,8 +62,6 @@ export const getOrderById = async (req: Request, res: Response) => {
   const id = req.params.id;
 
   const query = { _id: new ObjectId(id) };
-
- 
 
   try {
     const response = await getSingleOrder(query);
@@ -96,11 +91,7 @@ export const updateOrder = async (req: Request, res: Response) => {
   const { id } = req.params;
   const payload = req.body;
 
-
- 
-
   const query = { _id: new ObjectId(id) };
-
 
   try {
     if (!ObjectId.isValid(id!)) {
@@ -111,8 +102,6 @@ export const updateOrder = async (req: Request, res: Response) => {
     }
 
     const result = await updateSingleOrder(query, payload);
-
-    
 
     if (result.matchedCount === 0) {
       return res.status(404).json({
@@ -133,10 +122,7 @@ export const updateOrder = async (req: Request, res: Response) => {
   }
 };
 
-
-
-export const historyController =async (req:Request, res:Response)=>{
-
+export const historyController = async (req: Request, res: Response) => {
   const userPhone = req.params.id;
 
   if (!userPhone) {
@@ -148,7 +134,7 @@ export const historyController =async (req:Request, res:Response)=>{
 
   const query = { "customerInfo.phone": userPhone };
 
-  try{
+  try {
     const result = await getHistory(query);
 
     // if(result.length ===0){
@@ -158,40 +144,67 @@ export const historyController =async (req:Request, res:Response)=>{
     //   })
     // }
     res.status(200).json({
-      success:true,
-      message:"Order history found",
-      data:result
-    })
-  }catch(err:any){
+      success: true,
+      message: "Order history found",
+      data: result,
+    });
+  } catch (err: any) {
     res.status(500).json({
-      success:false,
-      message:"Something went wrong",
-      data:err
-    })
+      success: false,
+      message: "Something went wrong",
+      data: err,
+    });
   }
+};
 
-}
-
-export const dashboardAnalyticsController = async (req: Request, res: Response) => {
-
-  try{
-    const result = await getDashboardAnalytics()
+export const dashboardAnalyticsController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const result = await getDashboardAnalytics();
 
     res.status(200).json({
-      success:true,
-      message:"Dashboard analytics data found",
-      data:result
-    })
-
-
-  }catch(err:any){
+      success: true,
+      message: "Dashboard analytics data found",
+      data: result,
+    });
+  } catch (err: any) {
     res.status(500).json({
-      success:false,
-      message:"Something went wrong",
-      data:err
-    })
+      success: false,
+      message: "Something went wrong",
+      data: err,
+    });
   }
+};
 
+export const deleteOrderController = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
 
+    const query = { _id: new ObjectId(id) };
 
+    const result = await deleteOrderServer(query);
+
+    if (!result) {
+      res.status(404).json({
+        success: false,
+        message: "Document not found",
+      });
+    }
+
+    res
+      .status(200)
+      .json({
+        success: true,
+        message: "Order Deleted successfully",
+        data: result,
+      });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      data: err,
+    });
+  }
 };

@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 import { client } from "../config/db";
 import { Product } from "../models/product.model";
 
@@ -10,8 +11,15 @@ export async function createProduct(product: Product) {
   return result;
 }
 
+export async function existingProductSlug(slug:string) {
+  const result = await productCollection.findOne({slug: slug})
+  return result;
+}
+
+
+
 export async function getAllProductService() {
-  const query = { isDraft: false, featured: false, isDelete: false };
+  const query = { isDraft: false, isDelete: false };
 
   const result = await productCollection
     .find(query)
@@ -61,6 +69,19 @@ export async function getFeatureProdct(query: {
 
     return result
 }
+
+
+export const primaryDeleteProductService = async (
+  query: any,
+) => {
+  const result = await productCollection.findOneAndUpdate(
+    query,
+    { $set: { isDelete: true } },
+    { returnDocument: "after" }
+  );
+
+  return result;
+};
 
 
 
