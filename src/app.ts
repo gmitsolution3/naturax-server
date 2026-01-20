@@ -19,7 +19,7 @@ app.use(
       "https://gm-commerce.vercel.app",
       "http://localhost:3000",
       "https://yellowfurniture.vercel.app",
-      "https://yellowfurniture.xyz/",
+      "https://yellowfurniture.xyz",
     ],
     credentials: true,
     exposedHeaders: ["set-cookie"],
