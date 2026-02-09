@@ -3,10 +3,22 @@ import { client } from "../config/db";
 import { hashSha256 } from "../utils/encryption";
 import { getFacebookCredentialsService } from "./facebook.service";
 import { productCollection } from "./product.service";
+import { VisitorDoc } from "../types";
+import { calculateRisk } from "../utils/calculateRisk";
+import { generateSecureOTP } from "../helper/generateOTP";
+import { sendEmail } from "../helper/nodemailerFun";
+import { addFraudScoreService } from "./visitorLOg.service";
+import { ObjectId } from "mongodb";
 
 const createOrderCollection = client
   .db("loweCommerce")
   .collection("create_order");
+const visitorLog = client.db("loweCommerce").collection("VisitorLog");
+const userLocation = client
+  .db("loweCommerce")
+  .collection<VisitorDoc>("UserLocation");
+
+const otpCollection = client.db("loweCommerce").collection("OTPStore");
 
 // created order
 export async function CreateOrderService(payload: any) {
@@ -28,29 +40,30 @@ export async function CreateOrderService(payload: any) {
   const finalProducts = payload.products.map((cartItem: any) => {
     const productDB = productsFromDB.find((p) => p.slug === cartItem.slug);
     if (!productDB) {
-      return { success: false, message: `Product not found: ${cartItem.slug}` };
+      return {
+        success: false,
+        message: `Product not found: ${cartItem.slug}`,
+      };
     }
 
-   const variant = productDB.variants.find(
-     (v: any) => v.sku === cartItem.variant.sku
-   );
+    const variant = productDB.variants.find(
+      (v: any) => v.sku === cartItem.variant.sku,
+    );
 
     if (!variant) {
-
       return {
         success: false,
         message: `Variant not found for ${productDB.title}`,
       };
     }
 
-
     // Validate stock
     const availableStock = parseInt(productDB.stockQuantity as string, 10);
     if (cartItem.quantity > availableStock) {
-       return {
-         success: false,
-         message: `Not enough stock for product: ${productDB.title}`,
-       };
+      return {
+        success: false,
+        message: `Not enough stock for product: ${productDB.title}`,
+      };
     }
 
     // Calculate price after discount
@@ -75,7 +88,7 @@ export async function CreateOrderService(payload: any) {
   // Calculate order totals
   const subtotal = finalProducts.reduce(
     (sum: any, p: any) => sum + p.subtotal,
-    0
+    0,
   );
 
   const deliveryCharge = payload.deliveryMethod === "inside" ? 80 : 100;
@@ -105,10 +118,28 @@ export async function CreateOrderService(payload: any) {
     createdAt: new Date(),
     orderStatus: payload.orderStatus,
     paymentStatus: payload.paymentStatus,
+    customerIp: payload.ip,
+  };
+  // console.log({ ip: payload.ip });
+
+  const [orderResult, locationResult] = await Promise.all([
+    visitorLog.findOne({ ip: (payload as any).ip }),
+    userLocation.findOne({ ip: (payload as any).ip }),
+  ]);
+
+  const riskScore = calculateRisk({ ...orderResult, ...locationResult });
+  console.log({ riskScore: riskScore });
+
+  const finalORderData = {
+    ...orderData,
+    riskScore,
+    FakeOrderStatus:
+      riskScore >= 60 ? "FRAUD" : riskScore >= 40 ? "SUSPICIOUS" : "LEGIT",
+    isEmailVerified: riskScore >= 40 ? false : true,
   };
 
   // Insert order into DB
-  const result = await createOrderCollection.insertOne(orderData);
+  const result = await createOrderCollection.insertOne(finalORderData);
 
   const orderId = result.insertedId;
 
@@ -123,12 +154,43 @@ export async function CreateOrderService(payload: any) {
         $inc: {
           "variants.$.stock": -item.quantity,
         },
-      }
+      },
     );
   }
 
+  const updateRiskScore = await addFraudScoreService({
+    ip: payload.ip,
+    riskScore: riskScore,
+  });
+
+  console.log({ updateRiskScore: updateRiskScore });
+
+  if (riskScore >= 60) {
+    return {
+      status: "FRAUD",
+      requireEmailOTP: true,
+      orderId: orderId,
+      email: payload.customerInfo.email,
+      riskScore,
+    };
+  }
+
+  if (riskScore >= 40) {
+    return {
+      status: "SUSPICIOUS",
+      requireEmailOTP: true,
+      orderId: orderId,
+      email: payload.customerInfo.email,
+      riskScore,
+    };
+  }
+
+  // console.log({ riskScore: riskScore });
+
   try {
     const fbCreds = await getFacebookCredentialsService();
+
+    // console.log({ fbCreds: fbCreds });
 
     if (fbCreds?.isEnabled && fbCreds._internal.fbCapiToken) {
       const fbPayload = {
@@ -159,7 +221,7 @@ export async function CreateOrderService(payload: any) {
 
       await axios.post(
         `https://graph.facebook.com/v17.0/${fbCreds.fbPixelId}/events?access_token=${fbCreds._internal.fbCapiToken}`,
-        fbPayload
+        fbPayload,
       );
       console.log("Facebook CAPI Purchase sent successfully");
     }
@@ -169,7 +231,7 @@ export async function CreateOrderService(payload: any) {
 
   return {
     success: true,
-    orderId:  orderId,
+    orderId: orderId,
     grandTotal,
     message: "Order created successfully",
     paymentMethod: payload.paymentMethod,
@@ -185,6 +247,16 @@ export async function getAllOrder() {
   return result;
 }
 
+export async function getOrderForUserService(email: string) {
+  const result = await createOrderCollection
+    .find({
+      "customerInfo.email": email,
+    })
+    .toArray();
+
+  return result;
+}
+
 // get single order for details and edit
 export async function getSingleOrder(query: any) {
   const result = await createOrderCollection.findOne(query);
@@ -193,7 +265,6 @@ export async function getSingleOrder(query: any) {
 }
 
 export const updateSingleOrder = async (query: any, payload: any) => {
- 
   const { _id, ...updateData } = payload;
 
   return await createOrderCollection.updateOne(query, {
@@ -221,25 +292,39 @@ export async function getHistory(query: any) {
 
           // 🔹 Order Status Counts
           pending: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "pending"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "pending"] }, 1, 0],
+            },
           },
           processing: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "processing"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "processing"] }, 1, 0],
+            },
           },
           courier: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "courier"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "courier"] }, 1, 0],
+            },
           },
           onHold: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "on-hold"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "on-hold"] }, 1, 0],
+            },
           },
           cancelled: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "cancelled"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "cancelled"] }, 1, 0],
+            },
           },
           returned: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "return"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "return"] }, 1, 0],
+            },
           },
           completed: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "completed"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "completed"] }, 1, 0],
+            },
           },
 
           // 🔹 Payment Summary
@@ -255,7 +340,9 @@ export async function getHistory(query: any) {
             },
           },
           totalDueOrders: {
-            $sum: { $cond: [{ $eq: ["$paymentStatus", "pending"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$paymentStatus", "pending"] }, 1, 0],
+            },
           },
           totalDueAmount: {
             $sum: {
@@ -290,25 +377,39 @@ export async function getDashboardAnalytics() {
 
           //  Order Status Counts
           pending: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "pending"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "pending"] }, 1, 0],
+            },
           },
           processing: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "processing"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "processing"] }, 1, 0],
+            },
           },
           courier: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "courier"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "courier"] }, 1, 0],
+            },
           },
           onHold: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "on-hold"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "on-hold"] }, 1, 0],
+            },
           },
           cancelled: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "cancelled"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "cancelled"] }, 1, 0],
+            },
           },
           returned: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "return"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "return"] }, 1, 0],
+            },
           },
           completed: {
-            $sum: { $cond: [{ $eq: ["$orderStatus", "completed"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$orderStatus", "completed"] }, 1, 0],
+            },
           },
 
           //  Payment Summary
@@ -324,7 +425,9 @@ export async function getDashboardAnalytics() {
             },
           },
           totalDueOrders: {
-            $sum: { $cond: [{ $eq: ["$paymentStatus", "pending"] }, 1, 0] },
+            $sum: {
+              $cond: [{ $eq: ["$paymentStatus", "pending"] }, 1, 0],
+            },
           },
           totalDueAmount: {
             $sum: {
@@ -375,6 +478,32 @@ export async function getDashboardAnalytics() {
     ])
     .toArray();
 
+  const totalPurchaseResult = await productCollection
+    .aggregate([
+      {
+        $match: {
+          isDelete: false,
+        },
+      },
+      {
+        $project: {
+          purchase: {
+            $toDouble: "$purchase",
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalOverallPurchase: { $sum: "$purchase" },
+        },
+      },
+    ])
+    .toArray();
+
+  const totalOverallPurchase =
+    totalPurchaseResult[0]?.totalOverallPurchase || 0;
+
   const totalOrder = await createOrderCollection.countDocuments();
 
   const totalProduct = await productCollection.countDocuments();
@@ -383,11 +512,11 @@ export async function getDashboardAnalytics() {
     analytics: analytics,
     totalProduct: totalProduct,
     productAnalytics: productAnalytics,
+    totalOverallPurchase,
   };
 }
 
-
-export const topSellingProduct = async()=>{
+export const topSellingProduct = async () => {
   const topSellingProducts = await createOrderCollection
     .aggregate([
       { $unwind: "$products" },
@@ -423,17 +552,56 @@ export const topSellingProduct = async()=>{
     ])
     .toArray();
 
+  return topSellingProducts;
+};
 
-    return topSellingProducts;
-}
-
-
-
-export const deleteOrderServer = async(query:any) => {
-  const deleteOrder = await createOrderCollection.deleteOne(query)
+export const deleteOrderServer = async (query: any) => {
+  const deleteOrder = await createOrderCollection.deleteOne(query);
   return deleteOrder;
 };
 
+export const storeOTPForOrder = async (payload: any) => {
+  const { orderId, email } = payload;
+  const otp = generateSecureOTP();
 
+  if (!email || !orderId || otp.length === 0) {
+    return {
+      status: false,
+      message: "Missing required information for OTP generation",
+    };
+  }
 
+  await otpCollection.deleteMany({ orderId: new ObjectId(orderId) });
 
+  try {
+    const otpData = await otpCollection.insertOne({
+      email: email,
+      orderId: new ObjectId(orderId),
+      otp: otp,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    });
+
+    const emailPayload = {
+      to: email,
+      subject: "Your OTP for Order Verification",
+      text: `Your OTP for verifying order ${orderId} is: ${otp}. It will expire in 2 minutes.`,
+      orderId: orderId,
+      otp: otp,
+    };
+
+    await sendEmail(emailPayload);
+
+    console.log({ otpData: otpData });
+
+    return {
+      success: true,
+      message: "OTP generated and email sent successfully",
+      otpId: otpData.insertedId,
+      productId: orderId,
+    };
+  } catch (err) {
+    console.error("Error storing OTP:", err);
+    return { status: false, message: "Error storing OTP" };
+  }
+};

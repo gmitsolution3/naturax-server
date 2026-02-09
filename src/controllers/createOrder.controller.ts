@@ -6,12 +6,16 @@ import {
   getDashboardAnalytics,
   getHistory,
   getSingleOrder,
+  storeOTPForOrder,
   updateSingleOrder,
+  getOrderForUserService,
 } from "../services/createOrder.service";
 import { ObjectId } from "mongodb";
+import { sendEmail } from "../helper/nodemailerFun";
 
 export const CreateOrder = async (req: Request, res: Response) => {
   const orderData = req.body;
+  const ip = (req as any).userIP;
   if (!orderData) {
     return res.status(500).json({
       success: false,
@@ -19,8 +23,34 @@ export const CreateOrder = async (req: Request, res: Response) => {
     });
   }
 
+  const finalPayload = {ip, ...orderData}
+
   try {
-    const result = await CreateOrderService(orderData);
+    console.log("create order knocked")
+    const result = await CreateOrderService(finalPayload);
+
+    console.log({orderResult: result})
+
+
+    if(result.status === "FRAUD" || result.status === "SUSPICIOUS"){
+
+      const otpStore = await storeOTPForOrder(result)
+
+      if (!otpStore.success) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to generate OTP",
+        });
+      }
+
+      return res.status(200).json({
+        success: false,
+        message: "Need to verify email",
+        data: otpStore,
+        orderId: result.orderId,
+        isRedirect: true,
+      });
+    }
 
     res.status(201).send(result);
   } catch (err: any) {
@@ -32,7 +62,10 @@ export const CreateOrder = async (req: Request, res: Response) => {
   }
 };
 
-export const orderController = async (req: Request, res: Response) => {
+export const orderController = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const result = await getAllOrder();
 
@@ -54,6 +87,37 @@ export const orderController = async (req: Request, res: Response) => {
       success: false,
       message: "something is wrong",
       data: err,
+    });
+  }
+};
+
+export const getOrderForUser = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const { email } = req.params;
+
+    const result = await getOrderForUserService(email as string);
+
+    if (result.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: "No Order found with email: " + email,
+        data: result,
+      });
+    }
+
+    res.status(200).json({
+      success: false,
+      message: "All data found",
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "something is wrong",
+      data: error,
     });
   }
 };
@@ -122,7 +186,10 @@ export const updateOrder = async (req: Request, res: Response) => {
   }
 };
 
-export const historyController = async (req: Request, res: Response) => {
+export const historyController = async (
+  req: Request,
+  res: Response,
+) => {
   const userPhone = req.params.id;
 
   if (!userPhone) {
@@ -159,7 +226,7 @@ export const historyController = async (req: Request, res: Response) => {
 
 export const dashboardAnalyticsController = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   try {
     const result = await getDashboardAnalytics();
@@ -178,7 +245,10 @@ export const dashboardAnalyticsController = async (
   }
 };
 
-export const deleteOrderController = async (req: Request, res: Response) => {
+export const deleteOrderController = async (
+  req: Request,
+  res: Response,
+) => {
   try {
     const { id } = req.params;
 
@@ -193,13 +263,11 @@ export const deleteOrderController = async (req: Request, res: Response) => {
       });
     }
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: "Order Deleted successfully",
-        data: result,
-      });
+    res.status(200).json({
+      success: true,
+      message: "Order Deleted successfully",
+      data: result,
+    });
   } catch (err: any) {
     res.status(500).json({
       success: false,

@@ -7,11 +7,16 @@ import facebookRoute from "./routes/facebook.route";
 import bannerRoute from "./routes/banner.route";
 import socialRoute from "./routes/social.route";
 import authRouter from "./routes/auth.route";
+import marqueeRoute from "./routes/marquee.route";
+import courierRoute from "./routes/courier.route";
+import ipRouter from "./routes/getIp.route"
+import otpRouter from "./routes/otp.route"
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use(
   cors({
@@ -46,8 +51,17 @@ app.use("/banner", bannerRoute);
 
 app.use("/social", socialRoute);
 
+app.use("/marquee", marqueeRoute);
+
+app.use("/courier", courierRoute);
+
 // auth route
 app.use("/api/v1/auth", authRouter);
+
+app.use("/api", ipRouter);
+
+app.use("/api/otp", otpRouter);
+
 
 app.get("/", (req, res) => {
   res.send("server is running");
