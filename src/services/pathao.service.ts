@@ -5,7 +5,6 @@ const BASE_URL = process.env.PATHAO_BASE_URL;
 let accessToken: string | null = null;
 let tokenExpiry: number | null = null;
 
-// 1️⃣ Get access token
 export async function getPathaoToken() {
   // reuse token if still valid
   if (accessToken && tokenExpiry && tokenExpiry > Date.now()) {
@@ -29,7 +28,6 @@ export async function getPathaoToken() {
   return accessToken;
 }
 
-// 2️⃣ Axios instance with auth
 export async function pathaoRequest() {
   const token = await getPathaoToken();
 

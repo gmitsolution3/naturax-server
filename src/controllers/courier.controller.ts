@@ -4,6 +4,7 @@ import { ObjectId } from "mongodb";
 import {
   createSteadFastParcel,
   trackSteadFastParcel,
+  createSteadFastBulkParcel,
 } from "../services/steadfast.service";
 
 const orderCollection = client
@@ -47,6 +48,76 @@ export const assignCourier = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: "Failed to assign courier",
+    });
+  }
+};
+
+export const assignCourierBulk = async (
+  req: Request,
+  res: Response,
+) => {
+  try {
+    const { courierService } = req.query;
+    const orderIds = req.body; 
+
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Order IDs are required",
+      });
+    }
+
+    const orders = await orderCollection
+      .find({
+        _id: { $in: orderIds.map((id) => new ObjectId(id)) },
+        courier: { $exists: false },
+      })
+      .toArray();
+
+    if (!orders.length) {
+      return res.status(404).json({
+        success: false,
+        message: "No valid orders found",
+      });
+    }
+
+    if (courierService?.toString().toUpperCase() !== "STEADFAST") {
+      return res.json({
+        success: true,
+        message: "Pathao courier coming soon",
+      });
+    }
+
+    const courierResponses = await createSteadFastBulkParcel(orders);
+
+    const bulkOps = courierResponses.map((item: any) => ({
+      updateOne: {
+        filter: { _id: new ObjectId(item.invoice.split("-")[1]) },
+        update: {
+          $set: {
+            courier: {
+              provider: "STEADFAST",
+              consignmentId: item.consignment_id,
+              trackingCode: item.tracking_code,
+              status: "BOOKED",
+            },
+          },
+        },
+      },
+    }));
+
+    const result = await orderCollection.bulkWrite(bulkOps);
+
+    res.status(200).json({
+      success: true,
+      message: "Bulk courier assigned successfully",
+      updatedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Bulk courier assignment failed",
     });
   }
 };

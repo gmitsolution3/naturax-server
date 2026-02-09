@@ -14,7 +14,6 @@ const steadFastApi = axios.create({
 const isTest = process.env.STEADFAST_MODE === "TEST";
 
 export const createSteadFastParcel = async (order: any) => {
-
   const steadFastOrderData = {
     invoice: isTest
       ? `TEST-${generateInvoiceNumber("INV", 10)}`
@@ -44,8 +43,28 @@ export const createSteadFastParcel = async (order: any) => {
   return courier;
 };
 
+export const createSteadFastBulkParcel = async (orders: any[]) => {
+  const bulkData = orders.map((order) => ({
+    invoice: `INV-${order._id.toString()}`,
+    recipient_name: `${order.customerInfo.firstName} ${order.customerInfo.lastName}`,
+    recipient_email: order.customerInfo.email,
+    recipient_phone: order.customerInfo.phone,
+    recipient_address: `${order.shippingAddress.region}, ${order.shippingAddress.city}, ${order.shippingAddress.street}`,
+    cod_amount: Number(order.grandTotal),
+    note: isTest ? "Test order - do not ship." : "Handle with care",
+  }));
+
+  const res = await steadFastApi.post("/create_order/bulk-order", {
+    data: JSON.stringify(bulkData),
+  });
+
+  return res?.data?.data || [];
+};
+
 export const trackSteadFastParcel = async (trackingCode: string) => {
-  const res = await steadFastApi.get(`/status_by_trackingcode/${trackingCode}`);
+  const res = await steadFastApi.get(
+    `/status_by_trackingcode/${trackingCode}`,
+  );
 
   return res.data;
 };

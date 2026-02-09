@@ -247,6 +247,16 @@ export async function getAllOrder() {
   return result;
 }
 
+export async function getOrderForUserService(email: string) {
+  const result = await createOrderCollection
+    .find({
+      "customerInfo.email": email,
+    })
+    .toArray();
+
+  return result;
+}
+
 // get single order for details and edit
 export async function getSingleOrder(query: any) {
   const result = await createOrderCollection.findOne(query);
