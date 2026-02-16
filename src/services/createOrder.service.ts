@@ -120,7 +120,6 @@ export async function CreateOrderService(payload: any) {
     paymentStatus: payload.paymentStatus,
     customerIp: payload.ip,
   };
-  // console.log({ ip: payload.ip });
 
   const [orderResult, locationResult] = await Promise.all([
     visitorLog.findOne({ ip: (payload as any).ip }),
@@ -128,7 +127,6 @@ export async function CreateOrderService(payload: any) {
   ]);
 
   const riskScore = calculateRisk({ ...orderResult, ...locationResult });
-  console.log({ riskScore: riskScore });
 
   const finalORderData = {
     ...orderData,
@@ -163,8 +161,6 @@ export async function CreateOrderService(payload: any) {
     riskScore: riskScore,
   });
 
-  console.log({ updateRiskScore: updateRiskScore });
-
   if (riskScore >= 60) {
     return {
       status: "FRAUD",
@@ -185,12 +181,8 @@ export async function CreateOrderService(payload: any) {
     };
   }
 
-  // console.log({ riskScore: riskScore });
-
   try {
     const fbCreds = await getFacebookCredentialsService();
-
-    // console.log({ fbCreds: fbCreds });
 
     if (fbCreds?.isEnabled && fbCreds._internal.fbCapiToken) {
       const fbPayload = {
