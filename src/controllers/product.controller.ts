@@ -7,9 +7,11 @@ import {
   getAllProductService,
   getFeatureProdct,
   getProduct,
+  permanentlyDeleteServer,
   primaryDeleteProductService,
   productUpdateService,
   productWithSku,
+  restoreProductService,
 } from "../services/product.service";
 import { topSellingProduct } from "../services/createOrder.service";
 import { ObjectId } from "mongodb";
@@ -25,13 +27,13 @@ export const addProduct = async (req: Request, res: Response) => {
       });
     }
 
-    const isExistedProductSlug = await existingProductSlug(productData.slug)
+    const isExistedProductSlug = await existingProductSlug(productData.slug);
 
-    if(isExistedProductSlug){
+    if (isExistedProductSlug) {
       return res.status(500).json({
         success: false,
-        message: "Your slug is already exited"
-      })
+        message: "Your slug is already exited",
+      });
     }
 
     const result = await createProduct(productData);
@@ -127,8 +129,6 @@ export const getDraftProduct = async (req: Request, res: Response) => {
   try {
     const result = await DraftService(query);
 
- 
-
     if (result.length === 0) {
       return res
         .status(404)
@@ -166,14 +166,67 @@ export const getDeleteProduct = async (req: Request, res: Response) => {
   }
 };
 
+export const permanentlyDeleteProductController = async (
+  req: Request,
+  res: Response,
+) => {
+  const { id } = req.params;
+
+  try {
+    const query = { _id: new ObjectId(id) };
+
+    const result = await permanentlyDeleteServer(query);
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Data not found in db",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Data deleted successfully!",
+      data: result,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message, err: err });
+  }
+};
+
+export const restoreProductController = async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  console.log({ id: id });
+
+  try {
+    const query = { _id: new ObjectId(id) };
+
+    const result = await restoreProductService(query);
+
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Something was wrong! Try again",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Data restored successfully!!",
+      data: result,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message, err: err });
+  }
+};
+
 export const getFeaturedProduct = async (req: Request, res: Response) => {
   const query = { isDraft: false, featured: true, isDelete: false };
 
-
   try {
     const result = await getFeatureProdct(query);
-
-    
 
     if (result.length === 0) {
       return res.status(404).json({
@@ -192,34 +245,30 @@ export const getFeaturedProduct = async (req: Request, res: Response) => {
   }
 };
 
-
-export const getTopSellingProduct = async(req:Request, res:Response)=>{
-  try{
+export const getTopSellingProduct = async (req: Request, res: Response) => {
+  try {
     const result = await topSellingProduct();
 
-    if(result.length===0){
+    if (result.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Don't any any top selling product",
-      })
+      });
     }
-
 
     res.status(200).json({
       success: true,
       message: "Find top selling product",
-      data: result
-    })
-
-  }catch(err:any){
+      data: result,
+    });
+  } catch (err: any) {
     res.status(500).json({
       success: false,
       message: err.message,
-      error: err
-    })
+      error: err,
+    });
   }
-}
-
+};
 
 export const primaryProductDelete = async (req: Request, res: Response) => {
   try {
@@ -233,12 +282,7 @@ export const primaryProductDelete = async (req: Request, res: Response) => {
 
     const query = { _id: new ObjectId(id) };
 
- 
-    const updatedProduct = await primaryDeleteProductService(
-      query,
-    );
-
-
+    const updatedProduct = await primaryDeleteProductService(query);
 
     if (!updatedProduct) {
       return res.status(404).json({
@@ -262,51 +306,45 @@ export const primaryProductDelete = async (req: Request, res: Response) => {
   }
 };
 
-
-export const productUpdateController = async(req:Request, res:Response)=>{
+export const productUpdateController = async (req: Request, res: Response) => {
   const id = req.params.id;
   const data = req.body;
 
-  try{
-    const query = {_id: new ObjectId(id)}
-    if(!query){
+  try {
+    const query = { _id: new ObjectId(id) };
+    if (!query) {
       return res.status(404).json({
         success: false,
-        message: "Id is require"
-      })
+        message: "Id is require",
+      });
     }
 
-    if(!data){
+    if (!data) {
       return res.status(404).json({
         success: false,
-        message: "Data is require"
-      })
+        message: "Data is require",
+      });
     }
 
-    const result = await productUpdateService(query, data)
+    const result = await productUpdateService(query, data);
 
-    if(!result){
+    if (!result) {
       return res.status(500).json({
         success: false,
         message: "Data not updated yet! try again",
-      })
+      });
     }
 
     return res.status(200).json({
       success: false,
       message: "Data updated successfully",
-      data: result
-    })
-
-
-  }catch(err:any){
+      data: result,
+    });
+  } catch (err: any) {
     res.status(500).json({
       success: false,
       message: err.message,
-      error: err
-    })
+      error: err,
+    });
   }
-
-
-
-}
+};

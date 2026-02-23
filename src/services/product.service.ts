@@ -55,6 +55,18 @@ export async function DeleteService(query: { isDelete: boolean }) {
   return result;
 }
 
+export const permanentlyDeleteServer = async (query: any) => {
+  const result = await productCollection.deleteOne(query);
+  return result;
+};
+
+export const restoreProductService = async (query: any) => {
+  const result = await productCollection.updateOne(query, {
+    $set: { isDelete: false, restoreAt: new Date() },
+  });
+  return result;
+};
+
 export async function getFeatureProdct(query: {
   isDraft: boolean;
   featured: boolean;
@@ -71,10 +83,9 @@ export async function getFeatureProdct(query: {
 export const primaryDeleteProductService = async (query: any) => {
   const result = await productCollection.findOneAndUpdate(
     query,
-    { $set: { isDelete: true } },
+    { $set: { isDelete: true, deletedAt: new Date() } },
     { returnDocument: "after" },
   );
-
   return result;
 };
 
