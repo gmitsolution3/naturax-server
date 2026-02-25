@@ -58,8 +58,6 @@ export async function CreateOrderService(payload: any) {
         v.color.toLowerCase() === cartItem.color.toLowerCase(),
     );
 
-    console.log({ selectedVariant });
-
     const variant = selectedVariant?.sizes?.find(
       (size: any) =>
         size.size.toLowerCase() === cartItem.size.toLowerCase(),
@@ -108,6 +106,8 @@ export async function CreateOrderService(payload: any) {
     };
   });
 
+  console.log(payload);
+
   // Calculate order totals
   const subtotal = finalProducts.reduce(
     (sum: any, p: any) => sum + p.subtotal,
@@ -121,27 +121,27 @@ export async function CreateOrderService(payload: any) {
   //  Prepare final order object
   const orderData = {
     customerInfo: {
-      firstName: payload.customerInfo.firstName,
-      lastName: payload.customerInfo.lastName,
+      fullName: payload.customerInfo.fullName,
       phone: payload.customerInfo.phone,
       email: payload.customerInfo.email,
+      address: payload.customerInfo.address,
     },
-    shippingAddress: {
-      street: payload.shippingAddress.street,
-      city: payload.shippingAddress.city,
-      region: payload.shippingAddress.region,
-      postalCode: payload.shippingAddress.postalCode,
-    },
+
     products: finalProducts,
+
     subtotal,
     deliveryCharge,
     grandTotal,
+
     paymentMethod: payload.paymentMethod,
     deliveryMethod: payload.deliveryMethod,
     promoCode: payload.promoCode || "",
+
     createdAt: new Date(),
+
     orderStatus: payload.orderStatus,
     paymentStatus: payload.paymentStatus,
+
     customerIp: payload.ip,
   };
 

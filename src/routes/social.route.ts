@@ -6,7 +6,7 @@ import {
 
 const router = Router();
 
-router.post("/", socialController);
+router.patch("/", socialController);
 
 router.get("/", getSocialController);
 
