@@ -35,6 +35,8 @@ app.use(
       "https://naturax.org",
       "https://naturax-client.vercel.app",
       "https://crab-client-ten.vercel.app",
+      "https://naturax.vercel.app",
+      "https://www.naturax.org",
     ],
     credentials: true,
     exposedHeaders: ["set-cookie"],
